@@ -76,7 +76,7 @@ public class UserController {
      */
     @PostMapping("/signIn")
     public ApiResponse<SignInResponse> signIn(@RequestBody SignInRequest request) {
-        System.out.println("요청 파라미터 : " + request);
+        System.out.println("요청 파라미터. : " + request);
 
         // 계정 잠금 여부 먼저 확인 (3회 연속 실패 시 24시간 잠금)
         if (loginAttemptService.isLocked(request.getMemberId())) {
