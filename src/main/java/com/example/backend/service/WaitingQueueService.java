@@ -98,6 +98,14 @@ public class WaitingQueueService {
     }
 
     /**
+     * 대기열 전체 유저 조회 (스케줄러에서 순번 push 용도)
+     */
+    public Set<String> getAllUsers() {
+        Set<String> users = stringRedisTemplate.opsForZSet().range(QUEUE_KEY, 0, -1);
+        return users != null ? users : Set.of();
+    }
+
+    /**
      * 특정 유저를 대기열에서 제거 (취소, 이탈 등)
      *
      * @param userId 제거할 유저 ID

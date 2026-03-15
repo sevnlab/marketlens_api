@@ -2,13 +2,16 @@ package com.example.backend.controller;
 
 import com.example.backend.config.JwtTokenProvider;
 import com.example.backend.dto.ApiResponse;
+import com.example.backend.service.SseEmitterService;
 import com.example.backend.service.WaitingQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.Map;
 
@@ -28,6 +31,7 @@ import java.util.Map;
 public class WaitingQueueController {
 
     private final WaitingQueueService waitingQueueService;
+    private final SseEmitterService sseEmitterService;
     private final JwtTokenProvider jwtTokenProvider;
 
     /**
@@ -81,6 +85,31 @@ public class WaitingQueueController {
         long total = waitingQueueService.getSize();
         return ResponseEntity.ok(ApiResponse.success("조회 성공",
                 Map.of("rank", rank, "total", total)));
+    }
+
+    /**
+     * SSE 구독 (실시간 순번/입장 알림)
+     *
+     * 클라이언트는 이 연결을 열어두면 서버가 알아서 push해줌:
+     *   - event: rank     → 현재 순번 정보 (스케줄러가 주기적으로 전송)
+     *   - event: admitted → 입장 허용 + 입장 토큰 (Kafka Consumer가 처리 완료 후 전송)
+     *
+     * produces = TEXT_EVENT_STREAM_VALUE: SSE 전용 Content-Type 지정 필수
+     */
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(
+            @RequestHeader("Authorization") String authHeader) {
+
+        String userId = extractUserId(authHeader);
+        if (userId == null) {
+            // SSE는 ResponseEntity 반환이 안 되므로 연결 즉시 에러 전송 후 종료
+            SseEmitter emitter = new SseEmitter();
+            emitter.completeWithError(new IllegalArgumentException("유효하지 않은 토큰입니다."));
+            return emitter;
+        }
+
+        log.info("[SSE] 구독 요청 - userId={}", userId);
+        return sseEmitterService.connect(userId);
     }
 
     /**

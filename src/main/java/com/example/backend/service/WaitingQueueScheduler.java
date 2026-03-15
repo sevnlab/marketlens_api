@@ -25,6 +25,7 @@ public class WaitingQueueScheduler {
 
     private final WaitingQueueService waitingQueueService;
     private final KafkaProducerService kafkaProducerService;
+    private final SseEmitterService sseEmitterService;
 
     // 한 번에 입장 허용할 인원 수
     private static final long BATCH_SIZE = 10;
@@ -56,5 +57,13 @@ public class WaitingQueueScheduler {
         }
 
         log.info("[스케줄러] 이번 배치 처리 완료 - {}명 publish", users.size());
+
+        // 아직 대기 중인 유저들에게 변경된 순번 push
+        // (입장 허용된 N명이 빠졌으므로 남은 유저들의 순번이 앞으로 당겨짐)
+        waitingQueueService.getAllUsers().forEach(userId -> {
+            long rank = waitingQueueService.getRank(userId);
+            long remaining = waitingQueueService.getSize();
+            sseEmitterService.sendRank(userId, rank, remaining);
+        });
     }
 }

@@ -33,6 +33,7 @@ public class SecurityConfig {
                         // 테스트 중인 컨트롤러 API 전부 허용
                         .requestMatchers("/account/**").permitAll()  // 비동기 테스트 
                         .requestMatchers("/redis/**").permitAll() // 레디스 테스트
+                        .requestMatchers("/api/queue/stream").permitAll() // SSE (JWT는 컨트롤러에서 직접 검증)
 
                         .anyRequest().authenticated() // 그 외 나머지 모든 요청은 인증 필요
                 );
