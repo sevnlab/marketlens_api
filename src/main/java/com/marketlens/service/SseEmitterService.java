@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import org.springframework.http.MediaType;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -103,9 +105,12 @@ public class SseEmitterService {
         }
 
         try {
+            // MediaType.APPLICATION_JSON 명시 필수
+            // 생략하면 Map이 {rank=1, total=1} 형태 문자열로 직렬화돼서
+            // 프론트의 JSON.parse() 가 실패함
             emitter.send(SseEmitter.event()
                     .name(eventName)
-                    .data(data));
+                    .data(data, MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             // 클라이언트가 연결을 끊은 경우 등
             log.warn("[SSE] 전송 실패 - userId={}, event={}", userId, eventName);

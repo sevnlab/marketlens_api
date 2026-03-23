@@ -74,8 +74,10 @@ public class KafkaConsumerService {
         String entryToken = java.util.UUID.randomUUID().toString();
 
         // Redis에 입장 토큰 저장 (TTL 5분)
-        // SSE 미연결 유저도 재접속 후 GET /api/queue/token 으로 토큰 조회 가능
         waitingQueueService.saveEntryToken(userId, entryToken);
+
+        // 정원 세트에 추가 (퇴장 시 leaveActive 호출로 자리 반납)
+        waitingQueueService.enterActive(userId);
 
         // SSE 연결 중인 유저에게 입장 허용 알림
         if (sseEmitterService.isConnected(userId)) {

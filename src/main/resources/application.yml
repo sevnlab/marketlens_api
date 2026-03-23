@@ -93,3 +93,9 @@ spring:
 kafka:
   topic:
     waiting-queue: waiting-queue    # 대기열 → 입장 허용 유저를 전달하는 토픽
+
+# 대기열 설정
+queue:
+  capacity: 2              # 동시 입장 허용 최대 인원
+  batch-size: 10           # 스케줄러 1회 최대 처리 인원 (capacity 보다 크게 설정할 필요 없음)
+  active-ttl-minutes: 10   # 입장 후 최대 체류 시간 (분) — 이 시간이 지나면 강제 퇴장 처리

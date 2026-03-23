@@ -26,8 +26,33 @@ public class WaitingQueueService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    // Redis Key
+    // ─── 설정값 (@Value → application.yml 에서 주입) ──────────
+
+    /** 동시 입장 허용 최대 인원 */
+    @org.springframework.beans.factory.annotation.Value("${queue.capacity:2}")
+    private long capacity;
+
+    /**
+     * 입장 후 최대 체류 시간 (분)
+     * 이 시간이 지나면 브라우저가 꺼져 있어도 강제 퇴장 처리됨
+     */
+    @org.springframework.beans.factory.annotation.Value("${queue.active-ttl-minutes:10}")
+    private long activeTtlMinutes;
+
+    // ─── Redis Key 상수 ─────────────────────────────────────
+
+    /** 대기열 Sorted Set: member=userId, score=진입시각(epoch ms) */
     private static final String QUEUE_KEY = "waiting-queue";
+
+    /**
+     * 입장 중 유저 Sorted Set: member=userId, score=만료시각(epoch ms)
+     *
+     * ※ Redis Set은 개별 멤버에 TTL을 걸 수 없어서 Sorted Set으로 관리
+     *   score(만료시각)를 기준으로 스케줄러가 만료된 유저를 주기적으로 제거
+     */
+    private static final String ACTIVE_USERS_KEY = "active-users";
+
+    /** 입장 토큰 키 접두사: entry-token:{userId} */
     private static final String TOKEN_KEY_PREFIX = "entry-token:";
 
     // 입장 토큰 만료 시간: 5분 (재접속 여유 시간)
@@ -135,11 +160,101 @@ public class WaitingQueueService {
     /**
      * 입장 토큰 조회
      * 만료됐거나 아직 입장 허용 전이면 null 반환
-     *
-     * @param userId 유저 ID
-     * @return 입장 토큰, 없으면 null
      */
     public String getEntryToken(String userId) {
         return stringRedisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + userId);
+    }
+
+    // ─── 정원 관리 (Sorted Set 기반 TTL 자동 만료) ──────────
+
+    /**
+     * 유저를 입장 중 Sorted Set에 추가
+     *
+     * score = 현재 시각 + activeTtlMinutes(분) → 만료 시각(epoch ms)
+     * 스케줄러가 score < 현재 시각인 멤버를 주기적으로 제거해 자동 퇴장 처리
+     *
+     * @param userId 입장 확정된 유저 ID
+     */
+    public void enterActive(String userId) {
+        // 만료 시각 = 현재 시각 + TTL
+        double expireAt = Instant.now().toEpochMilli() + Duration.ofMinutes(activeTtlMinutes).toMillis();
+        stringRedisTemplate.opsForZSet().add(ACTIVE_USERS_KEY, userId, expireAt);
+        log.info("[정원] 입장 - userId={}, 만료시각={}, 현재 입장 인원={}", userId, expireAt, getActiveCount());
+    }
+
+    /**
+     * 유저를 입장 중 Sorted Set에서 제거 (명시적 퇴장)
+     * 입장 토큰도 함께 삭제
+     *
+     * 호출 시점:
+     *   - 사용자가 직접 나가기 버튼 클릭
+     *   - 구매 완료
+     *   - 10분 타이머 만료 (프론트엔드 호출)
+     *   - beforeunload sendBeacon
+     *
+     * @param userId 퇴장할 유저 ID
+     */
+    public void leaveActive(String userId) {
+        stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, userId);
+        stringRedisTemplate.delete(TOKEN_KEY_PREFIX + userId);
+        log.info("[정원] 퇴장 - userId={}, 남은 입장 인원={}", userId, getActiveCount());
+    }
+
+    /**
+     * 만료된 입장 유저 강제 퇴장 처리 (스케줄러에서 주기적으로 호출)
+     *
+     * Redis Sorted Set의 score(만료시각) < 현재 시각인 멤버를 일괄 제거
+     * → 브라우저 강제 종료 등으로 /leave API를 못 호출한 유저도 TTL 후 자동 퇴장됨
+     *
+     * @return 강제 퇴장된 유저 ID 목록 (로그 및 자리 반납 처리용)
+     */
+    public Set<String> evictExpiredActiveUsers() {
+        long now = Instant.now().toEpochMilli();
+
+        // score가 0 이상 ~ now 이하인 멤버 = 이미 만료된 유저
+        Set<String> expired = stringRedisTemplate.opsForZSet()
+                .rangeByScore(ACTIVE_USERS_KEY, 0, now);
+
+        if (expired == null || expired.isEmpty()) {
+            return Set.of();
+        }
+
+        // 만료된 유저 일괄 제거 + 입장 토큰도 함께 삭제
+        for (String userId : expired) {
+            stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, userId);
+            stringRedisTemplate.delete(TOKEN_KEY_PREFIX + userId);
+            log.warn("[정원] TTL 만료 강제 퇴장 - userId={}", userId);
+        }
+
+        return expired;
+    }
+
+    /**
+     * 현재 입장 중인 유저 수 (만료되지 않은 유저만 카운트)
+     *
+     * ZCOUNT active-users {now} +inf
+     * → score(만료시각) >= 현재 시각인 멤버만 집계
+     */
+    public long getActiveCount() {
+        long now = Instant.now().toEpochMilli();
+        // score가 now 이상 ~ +∞ 인 멤버 = 아직 만료되지 않은 유저
+        Long count = stringRedisTemplate.opsForZSet()
+                .count(ACTIVE_USERS_KEY, now, Double.MAX_VALUE);
+        return count != null ? count : 0;
+    }
+
+    /**
+     * 빈 자리 수 = 정원 - 현재 입장 인원
+     * 스케줄러가 이 값을 보고 대기열에서 다음 유저를 꺼냄
+     */
+    public long getAvailableSlots() {
+        return Math.max(0, capacity - getActiveCount());
+    }
+
+    /**
+     * 설정된 정원 반환 (컨트롤러 로그용)
+     */
+    public long getCapacity() {
+        return capacity;
     }
 }

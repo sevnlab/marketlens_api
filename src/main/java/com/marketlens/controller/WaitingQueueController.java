@@ -101,6 +101,26 @@ public class WaitingQueueController {
     }
 
     /**
+     * 퇴장 (자리 반납)
+     * Secret 페이지에서 나갈 때 호출 → 빈 자리 생성 → 다음 대기자 자동 입장
+     */
+    @PostMapping("/leave")
+    public ResponseEntity<ApiResponse<?>> leave(Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(401).body(ApiResponse.fail("로그인이 필요합니다."));
+        }
+
+        String userId = authentication.getName();
+        waitingQueueService.leaveActive(userId);
+
+        long activeCount = waitingQueueService.getActiveCount();
+        long capacity    = waitingQueueService.getCapacity();
+        log.info("[퇴장] userId={}, 남은 입장 인원={}/{}", userId, activeCount, capacity);
+
+        return ResponseEntity.ok(ApiResponse.success("퇴장 처리 완료", null));
+    }
+
+    /**
      * 입장 토큰 조회 (SSE 미연결 유저 재접속 시)
      */
     @GetMapping("/token")
