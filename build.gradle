@@ -19,7 +19,7 @@ repositories {
 
 configurations {
     all {
-        // Logback 제거 (Log4j2로 교체)
+        // 스프링부트 기본 Logback 제외 (Log4j2로 교체)
         exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
     }
 }

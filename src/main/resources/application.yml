@@ -27,7 +27,7 @@ spring:
           naver:
             client-id: TZa2drL7pm0XUNsRHX1z
             client-secret: Z7Z_uhHQRV
-            redirect-uri: http://localhost:7777/oauth2/callback/naver
+            redirect-uri: "{baseUrl}/oauth2/callback/naver"
             authorization-grant-type: authorization_code
             scope: email
         provider:

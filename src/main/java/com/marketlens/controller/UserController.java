@@ -30,7 +30,7 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = {"http://localhost:3000", "http://marketlens.co.kr"})
 public class UserController {
 
     private final UserService userService;
@@ -215,8 +215,11 @@ public class UserController {
             String token = jwtTokenProvider.generateToken(authentication, "naver");
 
             log.info("네이버 로그인 성공 - naverId={}", naverId);
+            String frontendBase = naverRedirectUri.startsWith("http://localhost")
+                    ? "http://localhost:3000"
+                    : "http://marketlens.co.kr";
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .header(HttpHeaders.LOCATION, "http://localhost:3000/oauth2/callback/naver?token=" + token)
+                    .header(HttpHeaders.LOCATION, frontendBase + "/oauth2/callback/naver?token=" + token)
                     .build();
 
         } catch (JsonProcessingException e) {

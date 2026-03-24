@@ -45,8 +45,8 @@
           filePattern → 롤링된 파일의 이름 규칙 (.gz = 자동 압축)
         -->
         <RollingFile name="LocalFileAppender"
-                     fileName="logs/app.log"
-                     filePattern="logs/app-%d{yyyy-MM-dd}.log.gz">
+                     fileName="D:/logs/app.log"
+                     filePattern="D:/logs/app-%d{yyyy-MM-dd}.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
             <Policies>
                 <!--
@@ -72,8 +72,8 @@
           (장애 추적 시 error.log 하나만 봐도 되도록)
         -->
         <RollingFile name="LocalErrorFileAppender"
-                     fileName="logs/error.log"
-                     filePattern="logs/error-%d{yyyy-MM-dd}.log.gz">
+                     fileName="D:/logs/error.log"
+                     filePattern="D:/logs/error-%d{yyyy-MM-dd}.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
             <!--
               ThresholdFilter : 조건에 맞는 로그만 이 Appender에 기록
@@ -96,8 +96,8 @@
         ========================= -->
 
         <RollingFile name="RealFileAppender"
-                     fileName="D:/logs/app.log"
-                     filePattern="D:/logs/app-%d{yyyy-MM-dd}.log.gz">
+                     fileName="/opt/marketlens/logs/app.log"
+                     filePattern="/opt/marketlens/logs/app-%d{yyyy-MM-dd}.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
             <Policies>
                 <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
@@ -107,8 +107,8 @@
         </RollingFile>
 
         <RollingFile name="RealErrorFileAppender"
-                     fileName="D:/logs/error.log"
-                     filePattern="D:/logs/error-%d{yyyy-MM-dd}.log.gz">
+                     fileName="/opt/marketlens/logs/error.log"
+                     filePattern="/opt/marketlens/logs/error-%d{yyyy-MM-dd}.log.gz">
             <PatternLayout pattern="${LOG_PATTERN}"/>
             <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
             <Policies>

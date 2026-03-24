@@ -2,6 +2,7 @@ package com.marketlens.repository;
 
 
 import com.marketlens.entity.Member;
+import org.hibernate.annotations.Comments;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -12,5 +13,6 @@ import java.util.Optional;
 public interface SignUpRepository extends JpaRepository<Member, String> {
 
     // userId로 사용자 검색
+//    @Comments(value = "로그인 ")
     Optional<Member> findByMemberIdAndPassword(String memberId, String password);
 }

@@ -9,15 +9,26 @@
 # =====================================================
 
 spring:
-  cache:
-    type: none  # 로컬에서는 Redis 캐시 사용 안 함
+  redis:
+    redisson:
+      file: classpath:redisson.yml
 
-  autoconfigure:
-    exclude:
-      # 로컬에는 Redis 서버가 없으므로 자동설정을 제외
-      # 이걸 빼면 localhost:6379 에 연결 시도하다가 앱이 뜨지 않음
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
-      # 로컬에는 Kafka 서버가 없으므로 자동설정 제외
-      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  cache:
+    type: redis
+
+  data:
+    redis:
+      password: seven
+      cluster:
+        nodes:
+          - 192.168.87.128:7001
+          - 192.168.87.130:7002
+          - 192.168.87.131:7003
+          - 192.168.87.132:7004
+          - 192.168.87.133:7005
+          - 192.168.87.134:7006
+        max-redirects: 5
+      connect-timeout: 3000
+
+  kafka:
+    bootstrap-servers: 192.168.87.135:9092,192.168.87.136:9092,192.168.87.137:9092

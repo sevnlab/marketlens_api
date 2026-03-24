@@ -16,7 +16,10 @@ public class CustomCorsFilter extends CorsFilter {
         CorsConfiguration config = new CorsConfiguration();
 
         // * 대신 명시적 origin 지정 — allowCredentials(true) 와 함께 쓰려면 필수
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
+        config.setAllowedOrigins(List.of(
+                "http://localhost:3000",
+                "http://marketlens.co.kr"
+        ));
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
 
