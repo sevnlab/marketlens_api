@@ -38,7 +38,7 @@ public class SseEmitterService {
      */
     public SseEmitter connect(String userId) {
         // 기존 연결이 있으면 먼저 닫기 (중복 연결 방지)
-        SseEmitter existing = emitters.remove(userId);
+        SseEmitter existing = emitters.remove(userId); // map 에서 remove 하면서 get 으로 기존 emitter 를 꺼낸다.
         if (existing != null) {
             existing.complete();
             log.info("기존 SSE 연결 종료");
@@ -46,6 +46,7 @@ public class SseEmitterService {
 
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
 
+        // 3가지 종료 콜백
         // 연결 종료 / 타임아웃 / 에러 → Map에서 제거
         emitter.onCompletion(() -> emitters.remove(userId));
         emitter.onTimeout(() -> emitters.remove(userId));

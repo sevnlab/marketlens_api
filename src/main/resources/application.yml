@@ -92,7 +92,7 @@ spring:
 # 커스텀 Kafka 토픽 이름 (KafkaConfig.java 에서 @Value 로 주입)
 kafka:
   topic:
-    waiting-queue: waiting-queue    # 대기열 → 입장 허용 유저를 전달하는 토픽
+    waiting-queue: kafka-waiting-queue    # 대기열 → 입장 허용 유저를 전달하는 토픽
 
 # 대기열 설정
 queue:
