@@ -37,7 +37,7 @@ public class KafkaConfig {
     public NewTopic waitingQueueTopic() {
         return TopicBuilder.name(waitingQueueTopic)
                 .partitions(3)
-                .replicas(1)
+                .replicas(1) // 브로커 수를 초과해서 생성 불가, 1이면 복제없음., 복제를 만들면 브로커 죽었을때 복제된것이 승격
                 .build();
     }
 

@@ -95,6 +95,11 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     /* ===============================
+       SQLite (주소 DB)
+    =============================== */
+    implementation 'org.xerial:sqlite-jdbc:3.47.1.0'
+
+    /* ===============================
        기타
     =============================== */
     implementation 'org.jetbrains:annotations:24.0.0'
