@@ -32,3 +32,7 @@ spring:
 
   kafka:
     bootstrap-servers: 192.168.87.135:9092,192.168.87.136:9092,192.168.87.137:9092
+
+address:
+  db:
+    path: D:/work_space/data/address/address.db

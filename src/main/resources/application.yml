@@ -94,6 +94,11 @@ kafka:
   topic:
     waiting-queue: kafka-waiting-queue    # 대기열 → 입장 허용 유저를 전달하는 토픽
 
+# 주소 DB 설정
+address:
+  db:
+    path:
+
 # 대기열 설정
 queue:
   capacity: 2              # 동시 입장 허용 최대 인원
