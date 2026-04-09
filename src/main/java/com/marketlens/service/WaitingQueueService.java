@@ -13,10 +13,13 @@ import java.util.Set;
 /**
  * 대기열 서비스 (운영 환경 전용)
  *
- * Redis Sorted Set 구조:
- *   key   : "waiting-queue"
- *   member: userId
- *   score : 대기열 진입 시각 (epoch milliseconds) → 먼저 들어온 사람이 낮은 score = 앞 순번
+ * Redis 구조:
+ *   waiting-queue  : Sorted Set, member=sessionId,  score=진입시각(epoch ms)
+ *   active-users   : Sorted Set, member=entryToken, score=만료시각(epoch ms)
+ *
+ * 식별자 구간 분리:
+ *   대기열 구간 → sessionId (JS 메모리에만 존재, 새로고침 시 소멸 = 순번 초기화)
+ *   Secret  구간 → entryToken (localStorage에 저장, 자리 반납 식별자로 사용)
  */
 @Slf4j
 @Service
@@ -25,96 +28,49 @@ public class WaitingQueueService {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    // ─── 설정값 (@Value → application.yml 에서 주입) ──────────
-
-    /** 동시 입장 허용 최대 인원 */
     @org.springframework.beans.factory.annotation.Value("${queue.capacity:2}")
     private long capacity;
 
-    /**
-     * 입장 후 최대 체류 시간 (분)
-     * 이 시간이 지나면 브라우저가 꺼져 있어도 강제 퇴장 처리됨
-     */
     @org.springframework.beans.factory.annotation.Value("${queue.active-ttl-minutes:10}")
     private long activeTtlMinutes;
 
-    // ─── Redis Key 상수 ─────────────────────────────────────
-
-    /** 대기열 Sorted Set: member=userId, score=진입시각(epoch ms) */
-    private static final String QUEUE_KEY = "waiting-queue";
-
-    /**
-     * 입장 중 유저 Sorted Set: member=userId, score=만료시각(epoch ms)
-     *
-     * ※ Redis Set은 개별 멤버에 TTL을 걸 수 없어서 Sorted Set으로 관리
-     *   score(만료시각)를 기준으로 스케줄러가 만료된 유저를 주기적으로 제거
-     */
+    private static final String QUEUE_KEY        = "waiting-queue";
     private static final String ACTIVE_USERS_KEY = "active-users";
-
-    /** 입장 토큰 키 접두사: entry-token:{userId} */
-    private static final String TOKEN_KEY_PREFIX = "entry-token:";
-
-    // 입장 토큰 만료 시간: 5분 (재접속 여유 시간)
-    private static final Duration TOKEN_TTL = Duration.ofMinutes(5);
 
     /**
      * 서버 시작 시 대기열 상태 초기화
-     *
-     * 재시작 전 Redis에 남아있던 잔류 데이터를 제거.
-     * (10분 체류 제한이 있으므로 서버가 꺼진 시점에 입장 중이던 유저는 이미 무효)
      */
     @PostConstruct
     public void clearQueueOnStartup() {
         stringRedisTemplate.delete(QUEUE_KEY);
         stringRedisTemplate.delete(ACTIVE_USERS_KEY);
-
-        Set<String> tokenKeys = stringRedisTemplate.keys(TOKEN_KEY_PREFIX + "*");
-        if (tokenKeys != null && !tokenKeys.isEmpty()) {
-            stringRedisTemplate.delete(tokenKeys);
-        }
-
-        log.info("[대기열] 서버 시작 - 대기열/활성유저/입장토큰 초기화 완료");
+        log.info("[대기열] 서버 시작 - 대기열/활성세션 초기화 완료");
     }
 
     /**
      * 대기열 진입
-     * 이미 대기열에 있으면 중복 등록하지 않음
      *
-     * @param userId 대기열에 등록할 유저 ID
-     * @return true: 신규 등록 / false: 이미 등록된 유저
+     * @param sessionId 컨트롤러에서 UUID로 발급한 세션 ID
      */
-    public boolean enter(String userId) {
-        // score = 현재 시각 (밀리초) → 먼저 들어온 사람이 작은 score = 앞 순번
-        double score = Instant.now().toEpochMilli(); // 현재 시각 (숫자)
-
-        // add() : 이미 존재하는 member면 false 반환 (중복 등록 방지)
-        Boolean added = stringRedisTemplate.opsForZSet().add(QUEUE_KEY, userId, score);
-
-        if (Boolean.TRUE.equals(added)) {
-            log.info("[대기열] 진입 - userId={}, score={}", userId, score);
-        } else {
-            log.debug("[대기열] 이미 존재 - userId={}", userId);
-        }
-
-        return Boolean.TRUE.equals(added);
+    public void enter(String sessionId) {
+        double score = Instant.now().toEpochMilli();
+        stringRedisTemplate.opsForZSet().add(QUEUE_KEY, sessionId, score);
+        log.info("[대기열] 진입 - sessionId={}, score={}", sessionId, score);
     }
 
     /**
      * 내 순번 조회 (0-based → +1 해서 반환)
-     * 예) 0번째 = 1번 대기
      *
-     * @param userId 조회할 유저 ID
+     * @param sessionId 조회할 세션 ID
      * @return 순번 (1부터 시작), 대기열에 없으면 -1
      */
-    public long getRank(String userId) {
-        Long rank = stringRedisTemplate.opsForZSet().rank(QUEUE_KEY, userId);
-
+    public long getRank(String sessionId) {
+        Long rank = stringRedisTemplate.opsForZSet().rank(QUEUE_KEY, sessionId);
         if (rank == null) {
-            log.debug("[대기열] 순번 조회 실패 - userId={} (대기열에 없음)", userId);
+            log.debug("[대기열] 순번 조회 실패 - sessionId={} (대기열에 없음)", sessionId);
             return -1;
         }
-
-        return rank + 1; // 0-based → 1-based
+        return rank + 1;
     }
 
     /**
@@ -126,110 +82,79 @@ public class WaitingQueueService {
     }
 
     /**
-     * 앞에서 N명 꺼내기 (스케줄러에서 호출)
-     * Kafka에 publish 할 대상 목록 반환
+     * 앞에서 N개 세션 꺼내기 (스케줄러에서 호출)
      *
-     * @param count 꺼낼 인원 수
-     * @return userId Set
+     * ZPOPMIN: 조회 + 삭제를 원자적으로 처리
+     * → 서버 여러 대가 동시에 실행해도 같은 세션이 중복으로 꺼내지지 않음
      */
     public Set<String> popFront(long count) {
-        // score 낮은 순(먼저 들어온 순)으로 0 ~ count-1 번째 조회
-        Set<String> users = stringRedisTemplate.opsForZSet().range(QUEUE_KEY, 0, count - 1);
+        Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> tuples =
+                stringRedisTemplate.opsForZSet().popMin(QUEUE_KEY, count);
 
-        if (users != null && !users.isEmpty()) {
-            // 꺼낸 유저들을 대기열에서 제거
-            stringRedisTemplate.opsForZSet().remove(QUEUE_KEY, users.toArray());
-            log.info("[대기열] {}명 입장 허용 - {}", users.size(), users);
+        if (tuples == null || tuples.isEmpty()) {
+            return Set.of();
         }
 
-        return users != null ? users : Set.of();
+        Set<String> sessions = new java.util.HashSet<>();
+        for (org.springframework.data.redis.core.ZSetOperations.TypedTuple<String> tuple : tuples) {
+            if (tuple.getValue() != null) {
+                sessions.add(tuple.getValue());
+            }
+        }
+
+        log.info("[대기열] {}개 세션 입장 허용 - {}", sessions.size(), sessions);
+        return sessions;
     }
 
     /**
-     * 대기열 전체 유저 조회 (스케줄러에서 순번 push 용도)
+     * 대기열 전체 세션 조회 (스케줄러에서 순번 push 용도)
      */
-    public Set<String> getAllUsers() {
-        Set<String> users = stringRedisTemplate.opsForZSet().range(QUEUE_KEY, 0, -1);
-        return users != null ? users : Set.of();
+    public Set<String> getAllSessions() {
+        Set<String> sessions = stringRedisTemplate.opsForZSet().range(QUEUE_KEY, 0, -1);
+        return sessions != null ? sessions : Set.of();
     }
 
     /**
-     * 특정 유저를 대기열에서 제거 (취소, 이탈 등)
+     * 특정 세션을 대기열에서 제거
+     */
+    public void remove(String sessionId) {
+        stringRedisTemplate.opsForZSet().remove(QUEUE_KEY, sessionId);
+        log.info("[대기열] 제거 - sessionId={}", sessionId);
+    }
+
+    // ─── 정원 관리 ──────────────────────────────────────────
+
+    /**
+     * 입장 확정된 세션을 active-users에 추가 (entryToken 기준)
      *
-     * @param userId 제거할 유저 ID
-     */
-    public void remove(String userId) {
-        stringRedisTemplate.opsForZSet().remove(QUEUE_KEY, userId);
-        log.info("[대기열] 제거 - userId={}", userId);
-    }
-
-    /**
-     * 입장 토큰 Redis 저장 (TTL 5분)
-     * SSE 미연결 유저가 재접속했을 때 GET /api/queue/token 으로 조회 가능
+     * score = 만료시각(epoch ms) → 스케줄러가 만료된 멤버를 주기적으로 강제 퇴장
      *
-     * @param userId 유저 ID
-     * @param token  입장 토큰 (UUID)
+     * @param entryToken 입장 토큰 (Secret 페이지 구간 식별자)
      */
-    public void saveEntryToken(String userId, String token) {
-        stringRedisTemplate.opsForValue().set(TOKEN_KEY_PREFIX + userId, token, TOKEN_TTL);
-        log.info("[대기열] 입장 토큰 저장 - userId={}, ttl=5min", userId);
-    }
-
-    /**
-     * 입장 토큰 조회
-     * 만료됐거나 아직 입장 허용 전이면 null 반환
-     */
-    public String getEntryToken(String userId) {
-        return stringRedisTemplate.opsForValue().get(TOKEN_KEY_PREFIX + userId);
-    }
-
-    // ─── 정원 관리 (Sorted Set 기반 TTL 자동 만료) ──────────
-
-    /**
-     * 유저를 입장 중 Sorted Set에 추가
-     *
-     * score = 현재 시각 + activeTtlMinutes(분) → 만료 시각(epoch ms)
-     * 스케줄러가 score < 현재 시각인 멤버를 주기적으로 제거해 자동 퇴장 처리
-     *
-     * @param userId 입장 확정된 유저 ID
-     */
-    public void enterActive(String userId) {
-        // 만료 시각 = 현재 시각 + TTL
+    public void enterActive(String entryToken) {
         double expireAt = Instant.now().toEpochMilli() + Duration.ofMinutes(activeTtlMinutes).toMillis();
-        stringRedisTemplate.opsForZSet().add(ACTIVE_USERS_KEY, userId, expireAt);
-        log.info("[정원] 입장 - userId={}, 만료시각={}, 현재 입장 인원={}", userId, expireAt, getActiveCount());
+        stringRedisTemplate.opsForZSet().add(ACTIVE_USERS_KEY, entryToken, expireAt);
+        log.info("[정원] 입장 - entryToken={}, 만료시각={}, 현재 입장 인원={}", entryToken, expireAt, getActiveCount());
     }
 
     /**
-     * 유저를 입장 중 Sorted Set에서 제거 (명시적 퇴장)
-     * 입장 토큰도 함께 삭제
+     * Secret 페이지 퇴장 (entryToken 기준으로 active-users에서 제거)
      *
-     * 호출 시점:
-     *   - 사용자가 직접 나가기 버튼 클릭
-     *   - 구매 완료
-     *   - 10분 타이머 만료 (프론트엔드 호출)
-     *   - beforeunload sendBeacon
-     *
-     * @param userId 퇴장할 유저 ID
+     * @param entryToken 입장 토큰
      */
-    public void leaveActive(String userId) {
-        stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, userId);
-        stringRedisTemplate.delete(TOKEN_KEY_PREFIX + userId);
-        log.info("[정원] 퇴장 - userId={}, 남은 입장 인원={}", userId, getActiveCount());
+    public void leaveActiveByToken(String entryToken) {
+        stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, entryToken);
+        log.info("[정원] 퇴장 - entryToken={}, 남은 입장 인원={}", entryToken, getActiveCount());
     }
 
     /**
-     * 만료된 입장 유저 강제 퇴장 처리 (스케줄러에서 주기적으로 호출)
+     * 만료된 입장 세션 강제 퇴장 처리 (스케줄러에서 주기적으로 호출)
      *
-     * Redis Sorted Set의 score(만료시각) < 현재 시각인 멤버를 일괄 제거
-     * → 브라우저 강제 종료 등으로 /leave API를 못 호출한 유저도 TTL 후 자동 퇴장됨
-     *
-     * @return 강제 퇴장된 유저 ID 목록 (로그 및 자리 반납 처리용)
+     * score(만료시각) < 현재 시각인 멤버를 일괄 제거
      */
     public Set<String> evictExpiredActiveUsers() {
         long now = Instant.now().toEpochMilli();
 
-        // score가 0 이상 ~ now 이하인 멤버 = 이미 만료된 유저
         Set<String> expired = stringRedisTemplate.opsForZSet()
                 .rangeByScore(ACTIVE_USERS_KEY, 0, now);
 
@@ -237,25 +162,19 @@ public class WaitingQueueService {
             return Set.of();
         }
 
-        // 만료된 유저 일괄 제거 + 입장 토큰도 함께 삭제
-        for (String userId : expired) {
-            stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, userId);
-            stringRedisTemplate.delete(TOKEN_KEY_PREFIX + userId);
-            log.warn("[정원] TTL 만료 강제 퇴장 - userId={}", userId);
+        for (String entryToken : expired) {
+            stringRedisTemplate.opsForZSet().remove(ACTIVE_USERS_KEY, entryToken);
+            log.warn("[정원] TTL 만료 강제 퇴장 - entryToken={}", entryToken);
         }
 
         return expired;
     }
 
     /**
-     * 현재 입장 중인 유저 수 (만료되지 않은 유저만 카운트)
-     *
-     * ZCOUNT active-users {now} +inf
-     * → score(만료시각) >= 현재 시각인 멤버만 집계
+     * 현재 입장 중인 세션 수 (만료되지 않은 세션만 카운트)
      */
     public long getActiveCount() {
         long now = Instant.now().toEpochMilli();
-        // score가 now 이상 ~ +∞ 인 멤버 = 아직 만료되지 않은 유저
         Long count = stringRedisTemplate.opsForZSet()
                 .count(ACTIVE_USERS_KEY, now, Double.MAX_VALUE);
         return count != null ? count : 0;
@@ -263,14 +182,13 @@ public class WaitingQueueService {
 
     /**
      * 빈 자리 수 = 정원 - 현재 입장 인원
-     * 스케줄러가 이 값을 보고 대기열에서 다음 유저를 꺼냄
      */
     public long getAvailableSlots() {
         return Math.max(0, capacity - getActiveCount());
     }
 
     /**
-     * 설정된 정원 반환 (컨트롤러 로그용)
+     * 설정된 정원 반환
      */
     public long getCapacity() {
         return capacity;

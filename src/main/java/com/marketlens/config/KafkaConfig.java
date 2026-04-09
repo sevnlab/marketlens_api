@@ -4,7 +4,6 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
@@ -36,7 +35,7 @@ public class KafkaConfig {
     @Bean
     public NewTopic waitingQueueTopic() {
         return TopicBuilder.name(waitingQueueTopic)
-                .partitions(3)
+                .partitions(3) // 토픽당 수백 개 이하로 유지하는게 권장, 파티션이 많을수록 브로커 메모리/파일 핸들 소모가 커서 성능 떨어짐
                 .replicas(1) // 브로커 수를 초과해서 생성 불가, 1이면 복제없음., 복제를 만들면 브로커 죽었을때 복제된것이 승격
                 .build();
     }

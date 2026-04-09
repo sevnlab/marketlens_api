@@ -56,23 +56,27 @@ public class WaitingQueueScheduler {
             log.info("[스케줄러] 빈 자리={}, 대기 인원={} → 입장 처리 시작", available, total);
 
             // Redis 대기열 앞에서 available 명 꺼내기 (꺼낸 즉시 대기열에서 제거됨)
-            Set<String> users = waitingQueueService.popFront(available);
+            Set<String> sessions = waitingQueueService.popFront(available);
 
-            // 꺼낸 유저들을 Kafka 토픽에 발행 → KafkaConsumerService 가 처리 후 SSE 전송
-            for (String userId : users) {
-                kafkaProducerService.publishApprovedUser(userId);
-                log.info("[스케줄러] 입장 허용 → Kafka publish - userId={}", userId);
+            // 꺼낸 세션들을 Kafka 토픽에 발행 → KafkaConsumerService 가 처리 후 SSE 전송
+            for (String sessionId : sessions) {
+                kafkaProducerService.publishApprovedUser(sessionId);
+                log.info("[스케줄러] 입장 허용 → Kafka publish - sessionId={}", sessionId);
             }
         }
 
         // ── Step 3. 대기자 순번 업데이트 (SSE push) ──────────
         // 빈 자리 유무와 관계없이 항상 실행
-        // → 다른 유저가 나중에 대기열에 합류했을 때 기존 대기자들의 total도 최신화됨
+        // → 다른 세션이 나중에 대기열에 합류했을 때 기존 대기자들의 total도 최신화됨
         long remaining = waitingQueueService.getSize();
+
+        // 대기열에 아무도 없으면 굳이 루프 돌 필요 없으니 스킵
         if (remaining > 0) {
-            waitingQueueService.getAllUsers().forEach(userId -> {
-                long rank = waitingQueueService.getRank(userId);
-                sseEmitterService.sendRank(userId, rank, remaining);
+            waitingQueueService.getAllSessions().forEach(sessionId -> {
+                long rank = waitingQueueService.getRank(sessionId);
+                if (rank != -1) {
+                    sseEmitterService.sendRank(sessionId, rank, remaining);
+                }
             });
         }
     }

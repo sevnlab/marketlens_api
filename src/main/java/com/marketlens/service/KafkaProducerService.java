@@ -29,14 +29,16 @@ public class KafkaProducerService {
     /**
      * 입장 허용된 유저를 Kafka 토픽에 발행
      *
-     * @param userId 입장 허용할 유저 ID
+     * @param sessionId 입장 허용할 유저 ID
      *
      * key = userId 로 설정 → 같은 유저의 메시지는 항상 같은 파티션으로 전달
      * (파티션 내 순서 보장 + 중복 처리 방지에 유리)
      */
-    public void publishApprovedUser(String userId) {
+    public void publishApprovedUser(String sessionId) {
+
+        // 카프카에서 send() 는 비동기라 결과를 기다리지 않고 바로 리턴, 나중에 성공/실패 결과가 future 에 담김
         CompletableFuture<SendResult<String, String>> future =
-                kafkaTemplate.send(waitingQueueTopic, userId, userId);
+                kafkaTemplate.send(waitingQueueTopic, sessionId, sessionId);
 
         future.whenComplete((result, ex) -> {
             if (ex != null) {
@@ -47,12 +49,12 @@ public class KafkaProducerService {
 
                 // 방법 2: Dead Letter Queue (실패 전용 토픽)에 따로 보관
                 // kafkaTemplate.send("waiting-queue-failed", userId, userId);
-                log.error("[Kafka] 메시지 발행 실패 - userId={}, error={}", userId, ex.getMessage());
+                log.error("[Kafka] 메시지 발행 실패 - sessionId={}, error={}", sessionId, ex.getMessage());
             } else {
-                log.debug("[Kafka] 메시지 발행 성공 - userId={}, partition={}, offset={}",
-                        userId,
-                        result.getRecordMetadata().partition(),
-                        result.getRecordMetadata().offset());
+                log.debug("[Kafka] 메시지 발행 성공 - sessionId={}, partition={}, offset={}",
+                        sessionId,
+                        result.getRecordMetadata().partition(), // 몇번 파티션에 들어갔는지
+                        result.getRecordMetadata().offset()); // 그 파티션에서 몇번째 메시지인지
             }
         });
     }
