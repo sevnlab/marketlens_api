@@ -98,6 +98,9 @@ kafka:
 address:
   db:
     path:
+  service:
+    url:
+    confirm-key:
 
 # 대기열 설정
 queue:
