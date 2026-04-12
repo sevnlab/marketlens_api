@@ -100,7 +100,7 @@ dependencies {
     implementation 'org.xerial:sqlite-jdbc:3.47.1.0'
 
     /* ===============================
-       H2 (dev 프로파일 인메모리 DB)
+       H2 (local 프로파일 인메모리 DB)
     =============================== */
     runtimeOnly 'com.h2database:h2'
 

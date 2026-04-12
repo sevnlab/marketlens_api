@@ -12,17 +12,25 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.springframework.boot.actuate.autoconfigure.data.redis.RedisHealthContributorAutoConfiguration
+      - org.springframework.boot.actuate.autoconfigure.data.redis.RedisReactiveHealthContributorAutoConfiguration
 
   datasource:
-    url: jdbc:h2:mem:marketlens;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:marketlens;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=USER
     driver-class-name: org.h2.Driver
-    username: sa
+    username: sa # ORACLE의 sys, MySQL 의 root 와 같은 개념, System Administrator 의 약자
     password:
+
+  h2:
+    console:
+      enabled: true   # http://localhost:{port}/h2-console 접속 가능
 
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
       ddl-auto: create-drop
+    defer-datasource-initialization: true  # Hibernate 테이블 생성 후 data.sql 실행
 
 address:
   service:

@@ -1,0 +1,51 @@
+# =====================================================
+# 개발 환경 설정 (application-dev.yml)
+# VM Redis 클러스터 + VM Kafka + VM Oracle 사용
+#
+# 실행 방법 (IntelliJ):
+#   Run Configuration -> Active profiles -> "dev" 입력
+# =====================================================
+
+spring:
+  redis:
+    redisson:
+      file: classpath:redisson.yml
+
+  cache:
+    type: redis
+
+  data:
+    redis:
+      password: seven
+      cluster:
+        nodes:
+          - 192.168.87.128:7001
+          - 192.168.87.130:7002
+          - 192.168.87.131:7003
+          - 192.168.87.132:7004
+          - 192.168.87.133:7005
+          - 192.168.87.134:7006
+        max-redirects: 5
+      connect-timeout: 3000
+
+  kafka:
+    bootstrap-servers: 192.168.87.135:9092,192.168.87.136:9092,192.168.87.137:9092
+
+  datasource:
+    driver-class-name: oracle.jdbc.OracleDriver
+    url: jdbc:oracle:thin:@192.168.87.129:1521/ORCLPDB1
+    username: SEVEN
+    password: SEVEN
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+address:
+  db:
+    path: D:/work_space/data/address/address.db
+  service:
+    url: https://business.juso.go.kr/addrlink/addrLinkApi.do
+    confirm-key: U01TX0FVVEgyMDI2MDQxMTIyNDUwNTExNzkxMTA=
