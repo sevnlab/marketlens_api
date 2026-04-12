@@ -101,6 +101,8 @@ address:
   service:
     url:
     confirm-key:
+  fallback:
+    url: http://localhost:8900/api/address/search  # SQLite 로컬 주소 검색 앱
 
 # 대기열 설정
 queue:

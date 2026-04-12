@@ -31,6 +31,9 @@ public class AddressClient {
     @Value("${address.service.confirm-key}")
     private String confirmKey;
 
+    @Value("${address.fallback.url}")
+    private String addressFallbackUrl;
+
     public List<AddressResponse> search(AddressRequest request) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -50,9 +53,9 @@ public class AddressClient {
         try {
             response = restTemplate.postForObject(addressServiceUrl, httpEntity, JusoApiResponse.class);
         } catch (RestClientException e) {
-            // 연결 실패, 타임아웃, 4xx/5xx 등 네트워크/HTTP 오류
-            log.error("[주소검색] Juso API 통신 오류 - keyword: {}, error: {}", request.getKeyword(), e.getMessage());
-            throw new RuntimeException("주소 검색 서비스 통신 오류가 발생했습니다.", e);
+            // 연결 실패, 타임아웃, 4xx/5xx 등 네트워크/HTTP 오류 → SQLite 로컬 앱으로 fallback
+            log.warn("[주소검색] Juso API 통신 오류 - fallback 전환. keyword: {}, error: {}", request.getKeyword(), e.getMessage());
+            return searchFallback(request);
         }
 
         if (response == null || response.results() == null) {
@@ -77,9 +80,34 @@ public class AddressClient {
                 .collect(Collectors.toList());
     }
 
+    private List<AddressResponse> searchFallback(AddressRequest request) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<AddressRequest> httpEntity = new HttpEntity<>(request, headers);
+
+        try {
+            FallbackApiResponse response = restTemplate.postForObject(addressFallbackUrl, httpEntity, FallbackApiResponse.class);
+
+            if (response == null || response.data() == null || response.data().results() == null) {
+                return Collections.emptyList();
+            }
+
+            return response.data().results();
+
+        } catch (RestClientException e) {
+            log.error("[주소검색] Fallback 통신 오류 - keyword: {}, error: {}", request.getKeyword(), e.getMessage());
+            throw new RuntimeException("주소 검색 서비스를 일시적으로 사용할 수 없습니다.", e);
+        }
+    }
+
     record JusoApiResponse(Results results) {
         record Results(Common common, List<Juso> juso) {}
         record Common(String errorCode, String errorMessage) {}
         record Juso(String roadAddr, String jibunAddr, String zipNo) {}
+    }
+
+    record FallbackApiResponse(String message, FallbackSearchResult data) {
+        record FallbackSearchResult(int totalCount, int currentPage, int countPerPage, List<AddressResponse> results) {}
     }
 }
