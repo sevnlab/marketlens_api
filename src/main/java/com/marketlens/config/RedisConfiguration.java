@@ -40,7 +40,7 @@ import java.time.Duration;
  * ──────────────────────────────────────────────────────────────────────
  */
 @Configuration
-@Profile({"real", "local"})
+@Profile({"real", "dev", "test"})
 @EnableCaching
 public class RedisConfiguration {
 

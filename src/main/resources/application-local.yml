@@ -1,41 +1,30 @@
 # =====================================================
 # 로컬 개발 환경 설정 (application-local.yml)
-# =====================================================
+# Redis/Kafka/Oracle 없이 실행 가능, H2 인메모리 DB 사용
+#
 # 실행 방법 (IntelliJ):
 #   Run Configuration -> Active profiles -> "local" 입력
-#
-# 실행 방법 (jar):
-#   java -jar app.jar --spring.profiles.active=local
 # =====================================================
 
 spring:
-  redis:
-    redisson:
-      file: classpath:redisson.yml
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
-  cache:
-    type: redis
+  datasource:
+    url: jdbc:h2:mem:marketlens;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
 
-  data:
-    redis:
-      password: seven
-      cluster:
-        nodes:
-          - 192.168.87.128:7001
-          - 192.168.87.130:7002
-          - 192.168.87.131:7003
-          - 192.168.87.132:7004
-          - 192.168.87.133:7005
-          - 192.168.87.134:7006
-        max-redirects: 5
-      connect-timeout: 3000
-
-  kafka:
-    bootstrap-servers: 192.168.87.135:9092,192.168.87.136:9092,192.168.87.137:9092
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
 
 address:
-  db:
-    path: D:/work_space/data/address/address.db
   service:
     url: https://business.juso.go.kr/addrlink/addrLinkApi.do
     confirm-key: U01TX0FVVEgyMDI2MDQxMTIyNDUwNTExNzkxMTA=

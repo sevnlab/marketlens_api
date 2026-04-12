@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * 2대 이상 서버에서도 Redis를 공유하므로 서버 간 횟수가 동기화됨
  */
 @Service
-@Profile({"real", "local"})
+@Profile({"real", "dev", "test"})
 public class RedisLoginAttemptService implements LoginAttemptService {
 
     private static final String FAIL_KEY_PREFIX = "login:fail:";

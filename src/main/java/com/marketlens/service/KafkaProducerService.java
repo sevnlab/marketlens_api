@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
  */
 @Slf4j
 @Service
+@Profile({"real", "dev", "test"})
 @RequiredArgsConstructor
 public class KafkaProducerService {
 

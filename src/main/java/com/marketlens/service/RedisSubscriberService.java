@@ -2,6 +2,7 @@ package com.marketlens.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Slf4j
 @Service
+@Profile({"real", "dev", "test"})
 @RequiredArgsConstructor
 public class RedisSubscriberService implements MessageListener {
 

@@ -2,6 +2,7 @@ package com.marketlens.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
@@ -44,6 +45,7 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@Profile({"real", "dev", "test"})
 @RequiredArgsConstructor
 public class KafkaConsumerService {
 
