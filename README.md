@@ -4,6 +4,7 @@
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.6-green?style=flat-square&logo=spring)
 ![Gradle](https://img.shields.io/badge/Gradle-8.10.2-lightgrey?style=flat-square&logo=gradle)
 ![Redis](https://img.shields.io/badge/Redis-7.2.0-red?style=flat-square&logo=redis)
+![Kafka](https://img.shields.io/badge/Apache%20Kafka-3.x-black?style=flat-square&logo=apachekafka)
 
 ---
 
@@ -19,6 +20,7 @@
 - **Build Tool:** Gradle 8.10.2
 - **Database:** Oracle 19c
 - **Cache:** Redis 7.2.0
+- **Message Broker:** Apache Kafka 3.x (spring-kafka, 버전은 Spring Boot 3.5.6 BOM 자동 관리)
 
 ---
 
@@ -28,3 +30,4 @@
 - Oracle 19c 연동
 - 예외 처리 및 로깅
 - Swagger 문서화
+- Kafka 기반 대기열 시스템 ([상세 문서](docs/WAITING_QUEUE.md))
