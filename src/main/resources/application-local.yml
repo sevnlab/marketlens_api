@@ -17,6 +17,13 @@ spring:
       - org.springframework.boot.actuate.autoconfigure.data.redis.RedisReactiveHealthContributorAutoConfiguration
 
   datasource:
+    # jdbc:h2 => H2 드라이버 사용
+    # mem:marketlens => RAM 위에 marketlens라는 이름의 DB 생성
+    # DB_CLOSE_DELAY=-1 => 마지막 커넥션이 끊겨도 DB를 유지 (기본은 커넥션 없으면 바로 삭제됨)
+    # DB_CLOSE_ON_EXIT=FALSE => 기본값(TRUE)이면 JVM 종료 시 H2가 스스로 DB를 먼저 닫아버림
+    #                           그 뒤 Hibernate가 DROP TABLE 실행하려고 보면 DB가 이미 없어서 에러 로그 발생
+    #                           FALSE로 설정 시 H2가 먼저 닫히지 않아 Hibernate의 DROP TABLE이 정상 실행된 뒤 종료
+    #
     url: jdbc:h2:mem:marketlens;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=USER
     driver-class-name: org.h2.Driver
     username: sa # ORACLE의 sys, MySQL 의 root 와 같은 개념, System Administrator 의 약자
