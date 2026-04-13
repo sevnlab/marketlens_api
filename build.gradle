@@ -105,6 +105,11 @@ dependencies {
     runtimeOnly 'com.h2database:h2'
 
     /* ===============================
+       Jsoup (HTML 파싱 - 중고마켓 스크래핑용)
+    =============================== */
+    implementation 'org.jsoup:jsoup:1.18.3'
+
+    /* ===============================
        기타
     =============================== */
     implementation 'org.jetbrains:annotations:24.0.0'
